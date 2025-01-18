@@ -50,6 +50,21 @@ class StorageService {
     };
 
     // Ensure path exists and add transaction
+    this.ensureDataPathExists(data, year, month, weekNumber, dateString);
+
+    // Add transaction
+    data.transactions[year].months[month].weeks[weekNumber].days[
+      dateString
+    ].transactions.push(newTransaction);
+
+    // Update stats and handle safe money transfer
+    this.updateStatsAndTransferSafe(data, year, month, weekNumber, dateString);
+
+    this.saveData(data);
+    return newTransaction;
+  }
+
+  ensureDataPathExists(data, year, month, weekNumber, dateString) {
     if (!data.transactions[year]) {
       data.transactions[year] = { stats: this.createEmptyStats(), months: {} };
     }
@@ -68,23 +83,141 @@ class StorageService {
     if (
       !data.transactions[year].months[month].weeks[weekNumber].days[dateString]
     ) {
+      // Check for previous day's safe money
+      const previousDaySafe = this.getPreviousDaySafeMoney(data, dateString);
+
       data.transactions[year].months[month].weeks[weekNumber].days[dateString] =
         {
           transactions: [],
           stats: this.createEmptyStats(),
         };
+
+      // Add safe money transaction if exists
+      if (previousDaySafe > 0) {
+        this.addSafeMoneyTransaction(
+          data,
+          year,
+          month,
+          weekNumber,
+          dateString,
+          previousDaySafe
+        );
+      }
     }
+  }
 
-    // Add transaction
-    data.transactions[year].months[month].weeks[weekNumber].days[
+  getPreviousDaySafeMoney(data, currentDateString) {
+    const currentDate = new Date(currentDateString);
+    const previousDate = new Date(currentDate);
+    previousDate.setDate(previousDate.getDate() - 1);
+
+    const prevYear = previousDate.getFullYear().toString();
+    const prevMonth = (previousDate.getMonth() + 1).toString();
+    const prevWeek = this.getWeekNumber(previousDate).toString();
+    const prevDateString = previousDate.toISOString().split("T")[0];
+
+    const prevDayData =
+      data.transactions[prevYear]?.months[prevMonth]?.weeks[prevWeek]?.days[
+        prevDateString
+      ];
+    return prevDayData ? prevDayData.stats.netAmount : 0;
+  }
+
+  addSafeMoneyTransaction(data, year, month, week, dateString, amount) {
+    const safeTransaction = {
+      id: uuidv4(),
+      type: "income",
+      amount: amount,
+      category: "Safe",
+      description: "Previous day safe money",
+      timestamp: new Date(dateString).toISOString(),
+    };
+
+    data.transactions[year].months[month].weeks[week].days[
       dateString
-    ].transactions.push(newTransaction);
+    ].transactions.push(safeTransaction);
+  }
 
-    // Update stats at all levels
-    this.updateStats(data, year, month, weekNumber, dateString);
+  updateStatsAndTransferSafe(data, year, month, week, dateString) {
+    // Update current day stats
+    this.updateStats(data, year, month, week, dateString);
 
-    this.saveData(data);
-    return newTransaction;
+    // Check if it's the last day of the week
+    const currentDate = new Date(dateString);
+    const nextDate = new Date(currentDate);
+    nextDate.setDate(nextDate.getDate() + 1);
+
+    const currentWeek = this.getWeekNumber(currentDate);
+    const nextWeek = this.getWeekNumber(nextDate);
+
+    // If next day is in a new week, transfer safe money
+    if (currentWeek !== nextWeek) {
+      const currentWeekData = data.transactions[year].months[month].weeks[week];
+      const safeMoney = currentWeekData.stats.netAmount;
+
+      if (safeMoney > 0) {
+        const nextYear = nextDate.getFullYear().toString();
+        const nextMonth = (nextDate.getMonth() + 1).toString();
+        const nextWeekNum = nextWeek.toString();
+        const nextDateString = nextDate.toISOString().split("T")[0];
+
+        this.ensureDataPathExists(
+          data,
+          nextYear,
+          nextMonth,
+          nextWeekNum,
+          nextDateString
+        );
+        this.addSafeMoneyTransaction(
+          data,
+          nextYear,
+          nextMonth,
+          nextWeekNum,
+          nextDateString,
+          safeMoney
+        );
+        this.updateStats(
+          data,
+          nextYear,
+          nextMonth,
+          nextWeekNum,
+          nextDateString
+        );
+      }
+    }
+  }
+
+  // Add method to edit transaction
+  editTransaction(transactionId, updatedData) {
+    const data = this.getData();
+    let found = false;
+
+    // Search through the data structure to find and update the transaction
+    Object.entries(data.transactions).forEach(([year, yearData]) => {
+      Object.entries(yearData.months).forEach(([month, monthData]) => {
+        Object.entries(monthData.weeks).forEach(([week, weekData]) => {
+          Object.entries(weekData.days).forEach(([date, dayData]) => {
+            const transactionIndex = dayData.transactions.findIndex(
+              (t) => t.id === transactionId
+            );
+            if (transactionIndex !== -1) {
+              dayData.transactions[transactionIndex] = {
+                ...dayData.transactions[transactionIndex],
+                ...updatedData,
+              };
+              found = true;
+              this.updateStatsAndTransferSafe(data, year, month, week, date);
+            }
+          });
+        });
+      });
+    });
+
+    if (found) {
+      this.saveData(data);
+      return true;
+    }
+    return false;
   }
 
   // Get transactions for a specific period
@@ -243,6 +376,34 @@ class StorageService {
       .flatMap((month) => Object.values(month.weeks))
       .flatMap((week) => Object.values(week.days))
       .flatMap((day) => day.transactions);
+  }
+
+  deleteTransaction(transactionId) {
+    const data = this.getData();
+    let found = false;
+
+    Object.entries(data.transactions).forEach(([year, yearData]) => {
+      Object.entries(yearData.months).forEach(([month, monthData]) => {
+        Object.entries(monthData.weeks).forEach(([week, weekData]) => {
+          Object.entries(weekData.days).forEach(([date, dayData]) => {
+            const transactionIndex = dayData.transactions.findIndex(
+              (t) => t.id === transactionId
+            );
+            if (transactionIndex !== -1) {
+              dayData.transactions.splice(transactionIndex, 1);
+              found = true;
+              this.updateStatsAndTransferSafe(data, year, month, week, date);
+            }
+          });
+        });
+      });
+    });
+
+    if (found) {
+      this.saveData(data);
+      return true;
+    }
+    return false;
   }
 }
 
