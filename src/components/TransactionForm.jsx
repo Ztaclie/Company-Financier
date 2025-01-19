@@ -6,11 +6,8 @@ const TransactionForm = ({ date, onComplete, initialData = null }) => {
     type: initialData?.type || "expense",
     amount: initialData?.amount || "",
     description: initialData?.description || "",
-    category: initialData?.category || "",
     timestamp: initialData?.timestamp || new Date(date).toISOString(),
   });
-
-  const categories = storageService.getData().businessInfo.settings.categories;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -64,33 +61,6 @@ const TransactionForm = ({ date, onComplete, initialData = null }) => {
             required
           />
         </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Category
-        </label>
-        <select
-          value={formData.category}
-          onChange={(e) =>
-            setFormData({ ...formData, category: e.target.value })
-          }
-          className="w-full border rounded-md px-3 py-2"
-          required
-        >
-          <option value="">Select a category</option>
-          {formData.type === "income"
-            ? categories.income.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))
-            : categories.expense.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-        </select>
       </div>
 
       <div>

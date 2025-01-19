@@ -13,20 +13,6 @@ class StorageService {
           name: "",
           currency: "USD",
           startDate: new Date().toISOString(),
-          settings: {
-            fiscalYearStart: 1,
-            weekStart: 0,
-            categories: {
-              income: ["Sales", "Services", "Other Income"],
-              expense: [
-                "Supplies",
-                "Utilities",
-                "Rent",
-                "Salaries",
-                "Other Expenses",
-              ],
-            },
-          },
         },
         transactions: {},
       };
@@ -260,8 +246,6 @@ class StorageService {
       totalIncome: 0,
       totalExpense: 0,
       netAmount: 0,
-      topIncomeCategories: [],
-      topExpenseCategories: [],
     };
   }
 
@@ -310,48 +294,17 @@ class StorageService {
       totalIncome: 0,
       totalExpense: 0,
       netAmount: 0,
-      topIncomeCategories: [],
-      topExpenseCategories: [],
     };
-
-    // Calculate category totals
-    const categoryTotals = {};
 
     transactions.forEach((transaction) => {
       if (transaction.type === "income") {
         stats.totalIncome += transaction.amount;
-        categoryTotals[transaction.category] =
-          (categoryTotals[transaction.category] || 0) + transaction.amount;
       } else {
         stats.totalExpense += transaction.amount;
-        categoryTotals[transaction.category] =
-          (categoryTotals[transaction.category] || 0) + transaction.amount;
       }
     });
 
     stats.netAmount = stats.totalIncome - stats.totalExpense;
-
-    // Calculate top categories
-    const categories = Object.entries(categoryTotals)
-      .map(([category, amount]) => ({ category, amount }))
-      .sort((a, b) => b.amount - a.amount);
-
-    stats.topIncomeCategories = categories
-      .filter((cat) =>
-        transactions.some(
-          (t) => t.type === "income" && t.category === cat.category
-        )
-      )
-      .slice(0, 5);
-
-    stats.topExpenseCategories = categories
-      .filter((cat) =>
-        transactions.some(
-          (t) => t.type === "expense" && t.category === cat.category
-        )
-      )
-      .slice(0, 5);
-
     return stats;
   }
 
