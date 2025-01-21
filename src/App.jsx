@@ -2,12 +2,10 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
-  Link,
   Navigate,
 } from "react-router-dom";
-import { useState } from "react";
-
-// Placeholder components - we'll create these files next
+import { useState, useEffect } from "react";
+import DashboardLayout from "./components/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Reports from "./pages/Reports";
@@ -17,56 +15,85 @@ import LandingPage from "./pages/LandingPage";
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const Navbar = () => (
-    <nav className="bg-emerald-600 text-white p-4">
-      <div className="container mx-auto flex justify-between items-center">
-        <Link to="/dashboard" className="text-xl font-bold">
-          Company Financier
-        </Link>
-        <div className="space-x-4">
-          <Link to="/dashboard" className="hover:text-emerald-200">
-            Dashboard
-          </Link>
-          <Link to="/transactions" className="hover:text-emerald-200">
-            Transactions
-          </Link>
-          <Link to="/reports" className="hover:text-emerald-200">
-            Reports
-          </Link>
-          <Link to="/settings" className="hover:text-emerald-200">
-            Settings
-          </Link>
-        </div>
-      </div>
-    </nav>
-  );
+  // Check if user was previously authenticated
+  useEffect(() => {
+    const auth = localStorage.getItem("isAuthenticated");
+    if (auth === "true") {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleAuthentication = () => {
+    setIsAuthenticated(true);
+    localStorage.setItem("isAuthenticated", "true");
+  };
+
+  const handleSignOut = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem("isAuthenticated");
+  };
+
+  const ProtectedRoute = ({ children }) => {
+    if (!isAuthenticated) {
+      return <Navigate to="/" />;
+    }
+    return children;
+  };
 
   return (
     <Router>
-      {isAuthenticated && <Navbar />}
       <Routes>
         <Route
           path="/"
           element={
-            <LandingPage onGetStarted={() => setIsAuthenticated(true)} />
+            isAuthenticated ? (
+              <Navigate to="/dashboard" />
+            ) : (
+              <LandingPage onGetStarted={handleAuthentication} />
+            )
           }
         />
         <Route
           path="/dashboard"
-          element={isAuthenticated ? <Dashboard /> : <Navigate to="/" />}
+          element={
+            <ProtectedRoute>
+              <DashboardLayout onSignOut={handleSignOut}>
+                <Dashboard />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/transactions"
-          element={isAuthenticated ? <Transactions /> : <Navigate to="/" />}
+          element={
+            <ProtectedRoute>
+              <DashboardLayout onSignOut={handleSignOut}>
+                <Transactions />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/reports"
-          element={isAuthenticated ? <Reports /> : <Navigate to="/" />}
+          element={
+            <ProtectedRoute>
+              <DashboardLayout onSignOut={handleSignOut}>
+                <Reports />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/settings"
-          element={isAuthenticated ? <Settings /> : <Navigate to="/" />}
+          element={
+            <ProtectedRoute>
+              <DashboardLayout onSignOut={handleSignOut}>
+                <Settings />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
         />
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
   );
