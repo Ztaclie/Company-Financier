@@ -1,9 +1,13 @@
+import DataManagement from "../components/DataManagement";
+
 const Settings = () => {
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">Settings</h1>
-      <div className="bg-white p-6 rounded-lg shadow">
-        {/* Settings form will go here */}
+    <div className="max-w-4xl mx-auto">
+      <div className="space-y-6">
+        {/* Other settings components */}
+
+        {/* Data Management Section */}
+        <DataManagement />
       </div>
     </div>
   );

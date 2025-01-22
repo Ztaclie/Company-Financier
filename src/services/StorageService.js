@@ -358,6 +358,69 @@ class StorageService {
     }
     return false;
   }
+
+  // Export data
+  exportData() {
+    try {
+      const data = this.getData();
+      const exportData = {
+        version: "1.0",
+        timestamp: new Date().toISOString(),
+        data: data,
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `company-financier-backup-${
+        new Date().toISOString().split("T")[0]
+      }.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      return true;
+    } catch (error) {
+      console.error("Export failed:", error);
+      return false;
+    }
+  }
+
+  // Import data
+  async importData(file) {
+    try {
+      const text = await file.text();
+      const importedData = JSON.parse(text);
+
+      // Validate imported data structure
+      if (!this.validateImportedData(importedData)) {
+        throw new Error("Invalid data format");
+      }
+
+      // Merge with existing data or replace completely
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(importedData.data));
+      return true;
+    } catch (error) {
+      console.error("Import failed:", error);
+      return false;
+    }
+  }
+
+  // Validate imported data
+  validateImportedData(importedData) {
+    // Check version and basic structure
+    if (!importedData.version || !importedData.data) {
+      return false;
+    }
+
+    // Check required data structure
+    const requiredKeys = ["businessInfo", "transactions"];
+    return requiredKeys.every((key) => key in importedData.data);
+  }
 }
 
 export const storageService = new StorageService();
