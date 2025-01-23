@@ -359,8 +359,8 @@ class StorageService {
     return false;
   }
 
-  // Export data
-  exportData() {
+  // Export data to JSON
+  exportToJSON() {
     try {
       const data = this.getData();
       const exportData = {
@@ -372,42 +372,123 @@ class StorageService {
       const blob = new Blob([JSON.stringify(exportData, null, 2)], {
         type: "application/json",
       });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `company-financier-backup-${
-        new Date().toISOString().split("T")[0]
-      }.json`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
+      this.downloadFile(
+        blob,
+        `company-financier-backup-${
+          new Date().toISOString().split("T")[0]
+        }.json`
+      );
       return true;
     } catch (error) {
-      console.error("Export failed:", error);
+      console.error("JSON export failed:", error);
       return false;
     }
   }
 
-  // Import data
-  async importData(file) {
+  // Export data to CSV
+  exportToCSV() {
+    try {
+      const data = this.getData();
+      let csvContent = "Date,Type,Description,Amount\n";
+
+      // Flatten transactions data into CSV rows
+      Object.entries(data.transactions).forEach(([year, yearData]) => {
+        Object.entries(yearData.months).forEach(([month, monthData]) => {
+          Object.entries(monthData.weeks).forEach(([week, weekData]) => {
+            Object.entries(weekData.days).forEach(([date, dayData]) => {
+              dayData.transactions.forEach((transaction) => {
+                csvContent += `${date},${transaction.type},${transaction.description},${transaction.amount}\n`;
+              });
+            });
+          });
+        });
+      });
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      this.downloadFile(
+        blob,
+        `company-financier-transactions-${
+          new Date().toISOString().split("T")[0]
+        }.csv`
+      );
+      return true;
+    } catch (error) {
+      console.error("CSV export failed:", error);
+      return false;
+    }
+  }
+
+  // Helper function for downloading files
+  downloadFile(blob, filename) {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  }
+
+  // Import JSON data
+  async importFromJSON(file) {
     try {
       const text = await file.text();
       const importedData = JSON.parse(text);
 
-      // Validate imported data structure
       if (!this.validateImportedData(importedData)) {
-        throw new Error("Invalid data format");
+        throw new Error("Invalid JSON format");
       }
 
-      // Merge with existing data or replace completely
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(importedData.data));
       return true;
     } catch (error) {
-      console.error("Import failed:", error);
+      console.error("JSON import failed:", error);
       return false;
     }
+  }
+
+  // Import CSV data
+  async importFromCSV(file) {
+    try {
+      const text = await file.text();
+      const rows = text.split("\n").map((row) => row.split(","));
+      const headers = rows[0];
+
+      if (!this.validateCSVHeaders(headers)) {
+        throw new Error("Invalid CSV format");
+      }
+
+      // Initialize new data structure
+      const data = this.getData();
+
+      // Process each transaction row
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.length < 4) continue; // Skip empty rows
+
+        const transaction = {
+          timestamp: new Date(row[0]).toISOString(),
+          type: row[1],
+          description: row[2],
+          amount: parseFloat(row[3]),
+          id: crypto.randomUUID(),
+        };
+
+        this.addTransaction(transaction);
+      }
+
+      return true;
+    } catch (error) {
+      console.error("CSV import failed:", error);
+      return false;
+    }
+  }
+
+  // Validate CSV headers
+  validateCSVHeaders(headers) {
+    const requiredHeaders = ["Date", "Type", "Description", "Amount"];
+    return requiredHeaders.every((header) => headers.includes(header));
   }
 
   // Validate imported data

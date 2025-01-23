@@ -2,15 +2,23 @@ import { useState } from "react";
 import { storageService } from "../services/StorageService";
 
 const DataManagement = () => {
-  const [importStatus, setImportStatus] = useState("");
+  const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleExport = () => {
-    if (storageService.exportData()) {
-      setImportStatus("Data exported successfully!");
-      setTimeout(() => setImportStatus(""), 3000);
+  const handleExport = (format) => {
+    let success = false;
+
+    if (format === "json") {
+      success = storageService.exportToJSON();
+    } else if (format === "csv") {
+      success = storageService.exportToCSV();
+    }
+
+    if (success) {
+      setStatus(`Data exported successfully as ${format.toUpperCase()}!`);
+      setTimeout(() => setStatus(""), 3000);
     } else {
-      setImportStatus("Export failed. Please try again.");
+      setStatus(`${format.toUpperCase()} export failed. Please try again.`);
     }
   };
 
@@ -19,17 +27,26 @@ const DataManagement = () => {
     if (!file) return;
 
     setIsLoading(true);
-    setImportStatus("Importing data...");
+    setStatus("Importing data...");
 
     try {
-      if (await storageService.importData(file)) {
-        setImportStatus("Data imported successfully! Refreshing...");
+      let success = false;
+      if (file.name.endsWith(".json")) {
+        success = await storageService.importFromJSON(file);
+      } else if (file.name.endsWith(".csv")) {
+        success = await storageService.importFromCSV(file);
+      } else {
+        throw new Error("Unsupported file format");
+      }
+
+      if (success) {
+        setStatus("Data imported successfully! Refreshing...");
         setTimeout(() => window.location.reload(), 1500);
       } else {
-        setImportStatus("Import failed. Please check the file format.");
+        setStatus("Import failed. Please check the file format.");
       }
     } catch (error) {
-      setImportStatus("Import failed. Please try again.");
+      setStatus(`Import failed: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -44,29 +61,39 @@ const DataManagement = () => {
         <div>
           <h3 className="text-lg font-medium mb-2">Export Data</h3>
           <p className="text-gray-600 mb-2">
-            Download all your financial data as a JSON file.
+            Download your financial data in your preferred format.
           </p>
-          <button
-            onClick={handleExport}
-            disabled={isLoading}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 
-                     disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            Export Data
-          </button>
+          <div className="space-x-2">
+            <button
+              onClick={() => handleExport("json")}
+              disabled={isLoading}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 
+                       disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              Export as JSON
+            </button>
+            <button
+              onClick={() => handleExport("csv")}
+              disabled={isLoading}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 
+                       disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              Export as CSV
+            </button>
+          </div>
         </div>
 
         {/* Import Section */}
         <div className="border-t pt-4">
           <h3 className="text-lg font-medium mb-2">Import Data</h3>
           <p className="text-gray-600 mb-2">
-            Import previously exported data file.
+            Import data from JSON or CSV file.
           </p>
           <label className="block">
             <span className="sr-only">Choose file</span>
             <input
               type="file"
-              accept=".json"
+              accept=".json,.csv"
               onChange={handleImport}
               disabled={isLoading}
               className="block w-full text-sm text-gray-500
@@ -81,15 +108,15 @@ const DataManagement = () => {
         </div>
 
         {/* Status Message */}
-        {importStatus && (
+        {status && (
           <div
             className={`mt-4 p-3 rounded-md ${
-              importStatus.includes("successfully")
+              status.includes("successfully")
                 ? "bg-green-50 text-green-800"
                 : "bg-red-50 text-red-800"
             }`}
           >
-            {importStatus}
+            {status}
           </div>
         )}
       </div>
